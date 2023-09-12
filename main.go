@@ -4,8 +4,11 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 )
+
+var logDir = "logs"
 
 func udpEchoServer(ip string, port int) {
 	uniqueIPs := make(map[string]struct{})
@@ -50,13 +53,14 @@ func udpEchoServer(ip string, port int) {
 
 		clientData := strings.ReplaceAll(string(buf[:n]), "\n", "")
 		logToFile(
+			logDir,
 			"udp_all_traffic.log",
 			fmt.Sprintf("Received from %s: %s\n", clientAddr, clientData),
 		)
 		// Check for unique IP and log if needed
 		if _, exists := uniqueIPs[clientAddr.IP.String()]; !exists {
 			uniqueIPs[clientAddr.IP.String()] = struct{}{}
-			logToFile("unique_ips.log", clientAddr.IP.String()+"\n")
+			logToFile(logDir, "unique_ips.log", clientAddr.IP.String()+"\n")
 		}
 
 		// Echo the data back to the client
@@ -64,10 +68,31 @@ func udpEchoServer(ip string, port int) {
 	}
 }
 
-func logToFile(filename, data string) {
-	fullPath := "/var/log/" + filename
+func logToFile(directory, filename, data string) {
+	// Construct the full path for the file
+	fullPath := filepath.Join(directory, filename)
 
-	file, err := os.OpenFile(fullPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	// Ensure the directory exists
+	if _, err := os.Stat(directory); os.IsNotExist(err) {
+		err = os.MkdirAll(directory, 0755)
+		if err != nil {
+			fmt.Println("Error creating directory:", err)
+			return
+		}
+	}
+
+	// Check if the file exists and create if not
+	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+		_, err := os.Create(fullPath)
+		if err != nil {
+			fmt.Println("Error creating file:", err)
+			return
+		}
+		fmt.Printf("File %s created.\n", fullPath)
+	}
+
+	// Write the data to the file
+	file, err := os.OpenFile(fullPath, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		fmt.Println("Error opening file:", err)
 		return
